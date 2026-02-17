@@ -273,6 +273,25 @@ result = extract_article(
 node scripts/cdp_fetch.js 9222 "https://example.com" /tmp/page.html
 ```
 
+## Advanced: Upload to Feishu (Lark)
+
+Upload extracted articles (with images) to Feishu documents:
+
+```bash
+# Upload a markdown file with local images
+python3 scripts/feishu_upload.py article.md assets/
+```
+
+Credentials are loaded from `~/.chrome-crawl/config.json` (not committed to git):
+
+```json
+{"feishu": {"app_id": "...", "app_secret": "..."}}
+```
+
+Or set environment variables: `FEISHU_APP_ID`, `FEISHU_APP_SECRET`.
+
+**Image upload uses a 3-step process:** create empty image block → upload media file → PATCH with `replace_image` to link the token. This is handled automatically by the script.
+
 ## How We Tested
 
 | Metric | Result |

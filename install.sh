@@ -55,6 +55,8 @@ echo ""
 chmod +x "$SCRIPT_DIR/scripts/chrome_debug.sh"
 chmod +x "$SCRIPT_DIR/scripts/batch_crawl.py"
 chmod +x "$SCRIPT_DIR/scripts/wechat_extract.py"
+chmod +x "$SCRIPT_DIR/scripts/feishu_upload.py"
+chmod +x "$SCRIPT_DIR/scripts/ima_crawl.py"
 
 # 4. Create convenience symlinks (optional)
 mkdir -p "$HOME/.chrome-crawl"
