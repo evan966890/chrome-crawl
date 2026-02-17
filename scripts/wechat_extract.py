@@ -92,7 +92,7 @@ def extract_source_url(raw_html: str) -> str:
 def _remove_hidden_elements(soup: BeautifulSoup) -> None:
     """Remove elements with visibility:hidden or opacity:0 inline styles."""
     for tag in soup.find_all(style=True):
-        style = tag.get("style", "")
+        style = tag.get("style", "") if tag.attrs else ""
         if re.search(r"visibility\s*:\s*hidden", style) or \
            re.search(r"opacity\s*:\s*0(?:[;\s]|$)", style) or \
            re.search(r"display\s*:\s*none", style):
