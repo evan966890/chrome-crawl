@@ -1,12 +1,22 @@
 ---
 name: chrome-crawl
-description: Crawl websites through the user's real Chrome browser with zero detection. Specialized for WeChat articles with local image download, dual HTML+Markdown output, batch checkpoint resume, and Feishu document upload with images.
+description: |
+  Control the user's real Chrome browser via CDP for BOTH web scraping AND UI automation.
+  Two core capabilities:
+  1. Zero-detection crawling — fetch pages with real TLS fingerprint (no anti-bot triggers), extract content to HTML+Markdown, batch crawl with checkpoint resume, upload to Feishu docs.
+  2. Browser UI automation — use `agent-browser` to snapshot interactive elements, click buttons, fill forms, navigate pages. Works with any logged-in web app (WeChat MP backend, admin panels, SaaS dashboards, etc.) without writing DOM selectors or CDP WebSocket code.
+  Use this skill whenever you need to interact with a website through Chrome — whether reading content OR performing actions.
 metadata: {"openclaw":{"requires":{"bins":["node"]},"os":["darwin","linux"]}}
 ---
 
 # Chrome Crawl
 
-通过用户真实 Chrome 浏览器爬取网站，零检测。专为微信公众号文章优化，支持飞书文档上传。
+通过用户真实 Chrome 浏览器（CDP 协议）完成两类任务：
+
+1. **零检测网页抓取** — 真实 TLS 指纹绕过反爬，内容提取为 HTML+Markdown 双格式，批量断点续传，飞书文档上传
+2. **浏览器 UI 自动化** — 用 `agent-browser` 获取交互元素快照、点击按钮、填写表单、页面导航。适用于任何已登录的 Web 应用（微信公众号后台、管理面板、SaaS 系统等），无需手写 DOM 选择器或 CDP WebSocket 代码
+
+> **不只是爬虫。** 任何需要通过 Chrome 与网站交互的场景——无论是读取内容还是执行操作——都应使用本技能。
 
 ## 启动
 
@@ -21,21 +31,99 @@ curl -s "http://127.0.0.1:$CDP_PORT/json/version" >/dev/null 2>&1 || $CRAWL_SCRI
 CDP_PORT=$(cat ~/.chrome-crawl/cdp-port)
 ```
 
-## 打开页面（需要 agent-browser）
+## 浏览器 UI 自动化（agent-browser）
+
+`agent-browser` 通过 `npx agent-browser` 调用，所有命令必须带 `--cdp $CDP_PORT`。
+
+### 核心命令
 
 ```bash
+CDP_PORT=$(cat ~/.chrome-crawl/cdp-port)
+
+# 导航
 agent-browser --cdp $CDP_PORT open "https://example.com"
 agent-browser --cdp $CDP_PORT wait --load networkidle
+
+# 获取交互元素快照（关键！用这个代替手写 DOM 选择器）
+agent-browser --cdp $CDP_PORT snapshot -i       # 列出所有交互元素 + ref 编号
+agent-browser --cdp $CDP_PORT snapshot -i -c    # 紧凑模式
+
+# 点击、填写、提交
+agent-browser --cdp $CDP_PORT click @e13        # 按 ref 编号点击
+agent-browser --cdp $CDP_PORT fill @e2 "text"   # 清空并填入文本
+agent-browser --cdp $CDP_PORT type @e2 "text"   # 追加文本
+
+# 读取页面信息
+agent-browser --cdp $CDP_PORT get title
+agent-browser --cdp $CDP_PORT get url
+agent-browser --cdp $CDP_PORT get text @e1      # 获取元素文本
+
+# 执行 JS（小输出场景）
+agent-browser --cdp $CDP_PORT eval 'document.title'
+
+# 截图
+agent-browser --cdp $CDP_PORT screenshot /tmp/page.png
 ```
+
+### 典型 UI 自动化流程
+
+```
+snapshot -i  →  找到目标元素 ref  →  click/fill  →  snapshot -i  →  确认结果
+```
+
+**不需要**手写 CSS 选择器、XPath、或 CDP WebSocket 代码。`snapshot -i` 返回带 ref 编号的元素列表，直接用 `click @ref` 操作。
+
+### 适用场景
+
+| 场景 | 示例 |
+|------|------|
+| 微信公众号后台操作 | 预览文章、发布、管理素材 |
+| 后台管理系统 | 点击菜单、填写表单、提交审核 |
+| SaaS 平台操作 | 配置设置、触发任务、下载报表 |
+| 登录态页面交互 | 任何需要 Cookie 鉴权的操作（Chrome 已同步 Cookie） |
+| 表单自动填写 | 批量填写、提交多步表单 |
+
+### 实际案例：微信公众号预览
+
+```bash
+CDP_PORT=$(cat ~/.chrome-crawl/cdp-port)
+
+# 1. 确认当前页面
+agent-browser --cdp $CDP_PORT get url
+# → https://mp.weixin.qq.com/cgi-bin/appmsg?...&appmsgid=100000031
+
+# 2. 获取交互元素
+agent-browser --cdp $CDP_PORT snapshot -i -c
+# → button "预览" [ref=e13]
+
+# 3. 点击预览
+agent-browser --cdp $CDP_PORT click @e13
+
+# 4. 对话框出现，再次快照
+agent-browser --cdp $CDP_PORT snapshot -i -c
+# → button "确定" [ref=e18]
+
+# 5. 确认发送
+agent-browser --cdp $CDP_PORT click @e18
+# → 预览已发送到管理员微信
+```
+
+4 条命令完成，全程无需读 DOM 或写 WebSocket 脚本。
 
 ---
 
 ## 核心原则
 
+### 内容抓取
 1. **内容写文件，不进上下文** — 所有提取的页面内容必须重定向到文件，你的上下文中只保留进度元数据
 2. **双格式本地保存** — 每次提取都保存 HTML（人类可读）和 Markdown（AI 可读）两份
 3. **上传飞书文档** — 提取完成后用 `feishu_upload.py` 上传飞书文档（含图片）
 4. **只回复链接** — 回复给用户的消息中只包含飞书文档链接，不要贴内容
+
+### UI 自动化
+5. **snapshot 优先** — 用 `snapshot -i` 发现交互元素，不要手写 DOM 选择器
+6. **ref 编号操作** — 用 `click @ref` / `fill @ref` 操作元素，不要用 CSS 选择器或 XPath
+7. **逐步确认** — 每次操作后再次 `snapshot -i` 确认状态变化，不要盲目连续操作
 
 ---
 
@@ -464,13 +552,23 @@ const ws = new WebSocket(`ws://127.0.0.1:${CDP_PORT}/devtools/page/${TAB_ID}`);
 agent-browser --cdp $CDP_PORT eval 'JSON.stringify([...document.querySelectorAll("a")].map(a => ({t: a.innerText.trim().slice(0,80), h: a.href})).filter(a => a.t).slice(0, 50))'
 ```
 
-## 交互（点击、填表等）
+## 交互（点击、填表、UI 自动化）
+
+完整命令参考和使用案例见顶部「浏览器 UI 自动化（agent-browser）」章节。快速参考：
 
 ```bash
-agent-browser --cdp $CDP_PORT snapshot -i
-agent-browser --cdp $CDP_PORT click @e1
-agent-browser --cdp $CDP_PORT fill @e2 "text"
+CDP_PORT=$(cat ~/.chrome-crawl/cdp-port)
+
+agent-browser --cdp $CDP_PORT snapshot -i -c   # 列出交互元素 + ref
+agent-browser --cdp $CDP_PORT click @e1        # 点击
+agent-browser --cdp $CDP_PORT fill @e2 "text"  # 填写
+agent-browser --cdp $CDP_PORT type @e3 "text"  # 追加输入
+agent-browser --cdp $CDP_PORT get title        # 读取标题
+agent-browser --cdp $CDP_PORT get url          # 读取 URL
+agent-browser --cdp $CDP_PORT screenshot /tmp/screenshot.png  # 截图
 ```
+
+> **记住**：`snapshot -i` → 找 ref → `click @ref`。不需要写 CSS 选择器或 CDP 脚本。
 
 ---
 
