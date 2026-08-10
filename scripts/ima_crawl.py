@@ -26,6 +26,8 @@ IMA share_id is loaded from ~/.chrome-crawl/config.json:
 Or pass via --share-id=<id>.
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import os

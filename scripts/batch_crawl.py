@@ -30,6 +30,8 @@ Usage:
   python3 batch_crawl.py retry -o ./output/
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import random

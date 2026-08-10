@@ -15,6 +15,8 @@ Usage:
         result = extract_article(raw_html, output_dir, seq=1)
 """
 
+from __future__ import annotations
+
 import sys
 import re
 import html
